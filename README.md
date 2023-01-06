@@ -34,6 +34,7 @@ ExplorerPy  has the following requirements:
 
 - Python 3.x or higher
 - requests library
+- 
 ## Usage/Examples
 
 ```
