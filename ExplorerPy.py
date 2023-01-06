@@ -1,13 +1,11 @@
 #!/usr/bin/env/ python3
 
-#Standard libraries
 import argparse
 import socket
 import concurrent.futures
 import sys
 from time import sleep
 import os
-#Third Party Library
 import requests
 
 '''
