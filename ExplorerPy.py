@@ -86,7 +86,6 @@ threadcount = args.threadcount
 wordlist = args.wordlist
 portrange = args.portrange
 time = args.time
-max = args.max
 output = args.output_file
 
 
