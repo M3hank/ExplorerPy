@@ -46,29 +46,31 @@ A Recon-toolkit for Information-gathering.
 
 optional arguments:
   -h, --help            show this help message and exit
-  -d DOMAIN, --domain DOMAIN
+  -d DOMAIN,  DOMAIN
                         Domain name to scan
-  -t THREADCOUNT, --threadcount THREADCOUNT
+  -t  TIME
                         Number of threads to use for scanning (default: 20)
-  -w WORDLIST, --wordlist WORDLIST
-                        Wordlist to use for brute-forcing
-  -o OUTPUT_FILE, --output_file OUTPUT_FILE
+  -w WORDLIST
+                       Wordlist to use for brute-forcing
+  -o OUTPUT_FILE
                         Output file to write results to (default: None)
-  -time TIME, --time TIME
+  -time TIME
                         Timeout for requests in seconds (default: 15)
 
 Subdomain-Enumeration Arguments:
-  -se, --subenum       Enable subdomain enumeration module
-  -osint, --osint      Use OSINT (Open Source Intelligence) methods instead of
+  -se        Enable subdomain enumeration module
+  -osint      Use OSINT (Open Source Intelligence) methods instead of
                       brute-forcing for subdomain enumeration
 
 Directory-Enumeration Arguments:
-  -dir, --direnum      Enable directory brute-forcing module
+  -dir      Enable directory brute-forcing module
 
 Port-Scanner Arguments:
-  -ps, --portscan      Enable port scanning module
-  -p PORTRANGE, --portrange PORTRANGE
-                        Range of ports to scan (default: 1024)
+  -ps      Enable port scanning module
+  
+  -p       Range of ports to scan (default: 1024)
+  
+          
 ```
 
 ## Examples
