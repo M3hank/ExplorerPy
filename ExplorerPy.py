@@ -168,7 +168,7 @@ def sub_brute(domain, wordlist):
                 if result:
                     if output:
                         with open(output, 'a') as f_out:
-                            f_out.write(f'{final_url}\n')
+                            f_out.write(f'{result}\n')
             except Exception as e:
                 print(f'Error: {e}')
 
@@ -183,8 +183,10 @@ def check_subdomain(url, Session, printed_subdomains):
                 print(f'\033[1;32m[+] >> {final_url}   status-code:[{status}]\033[00m')
             else:
                 print(f'\033[1;31m[-] {final_url} {status}\033[00m')
+            return final_url
     except:
         print(f'\033[91m[-]{url}\033[00m')
+
 
 
 #Port-Scanning Module
