@@ -25,7 +25,7 @@ print('''\033[1;36m                       ____           __                   __
                                                                   Github:- m3hank''')
 
 
-parser = argparse.ArgumentParser(prog="ExplorerPy",description="A Recon-toolkit for Information-gathering.")
+parser = argparse.ArgumentParser(prog="ExplorerPy",description="A Scanning-toolkit for Information-gathering.")
 # Arguments to be passed
 parser.add_argument('-d',
                     help='Domain name to scan',
