@@ -3,3 +3,4 @@ socket
 concurrent.futures
 requests
 fake-useragent
+python-whois
