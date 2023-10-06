@@ -8,6 +8,7 @@ from time import sleep
 import os
 import requests
 from fake_useragent import UserAgent
+import whois 
 
 '''
 DISCLAIMER:
@@ -48,6 +49,14 @@ parser.add_argument('-time',
                     dest='time',
                     default=15,
                     type=float)
+parser.add_argument('-di',
+                    help='Enable domain information gathering module',
+                    dest='domaininfo',
+                    action='store_true')
+
+
+
+
 # Arguments for SubEnum module
 sub_args = parser.add_argument_group(title='Subdomain-Enumeration Arguments')
 sub_args.add_argument('-se',
@@ -180,6 +189,16 @@ def sub_brute(domain, wordlist):
             except Exception as e:
                 print(f'Error: {e}')
 
+
+# New function for domain information gathering
+def domain_info(domain):
+    print("Starting Domain Information Gathering")
+    w = whois.whois(domain)
+    print(f"Domain Name: {w.domain_name}")
+    print(f"Registrar: {w.registrar}")
+    print(f"Creation Date: {w.creation_date}")
+    print(f"Expiration Date: {w.expiration_date}")
+
 def check_subdomain(url, Session, printed_subdomains):
     try:
         response = Session.get(url, headers=headers, allow_redirects=True, timeout=time)
@@ -269,5 +288,8 @@ if args.portscan:
 if args.osint:
   osint(domain)
 
-if not args.subenum and not args.direnum and not args.portscan and not args.osint:
-  print("Please select an enumeration mode (subenum, direnum, portscan, osint)")
+if args.domaininfo:
+    domain_info(domain)
+
+if not args.subenum and not args.direnum and not args.portscan and not args.osint and not args.domaininfo:
+    print("Please select an enumeration mode (subenum, direnum, portscan, osint, domaininfo)")
