@@ -1,6 +1,4 @@
-argparse
-socket
-concurrent.futures
-requests
-fake-useragent
 python-whois
+fake_useragent
+requests
+tqdm
