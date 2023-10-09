@@ -110,9 +110,11 @@ This script is intended for educational and testing purposes only. It is not int
 [GNU General Public License v3.0](https://choosealicense.com/licenses/gpl-3.0/)
 
 
-## Authors
+## Contributors
 
 - [@M3hank](https://www.github.com/M3hank)
+- [@Paresh-Maheshwari](https://www.github.com/Paresh-Maheshwari)
+- [@7uyash](https://www.github.com/7uyash)
 
 
 ## Contributing
