@@ -48,7 +48,7 @@ optional arguments:
   -h, --help            show this help message and exit
   -d DOMAIN,  DOMAIN
                         Domain name to scan
-  -t  TIME
+  -t  Threads
                         Number of threads to use for scanning (default: 20)
   -w WORDLIST
                        Wordlist to use for brute-forcing
