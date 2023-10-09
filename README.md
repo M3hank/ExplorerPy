@@ -13,6 +13,14 @@ cd ExplorerPy
 ```
 pip3 install -r requirements.txt
 ```
+## Screenshots
+![ExplorerPy](https://github.com/M3hank/ExplorerPy/assets/70057473/df141d1d-79aa-4893-a855-7dd9330546c5)
+
+### Directory Bruteforce Module
+![BruteForce](https://github.com/M3hank/ExplorerPy/assets/70057473/c19da4d0-5e33-458c-abea-77707e5cc12f)
+
+
+
 ## Features
 
 - Subdomain enumeration using either brute-forcing or OSINT (Open Source Intelligence) methods
