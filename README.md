@@ -42,16 +42,14 @@ usage: ExplorerPy [-h] [-d DOMAIN] [-t THREADCOUNT] [-w WORDLIST] [-o OUTPUT_FIL
                  [-time TIME]
                  [-se] [-osint] [-dir] [-ps] [-p PORTRANGE]
 
-A Recon-toolkit for Information-gathering.
-
 optional arguments:
   -h, --help            show this help message and exit
   -d DOMAIN,  DOMAIN
                         Domain name to scan
-  -t  Threads
+  -t THREADCOUNT
                         Number of threads to use for scanning (default: 20)
   -w WORDLIST
-                       Wordlist to use for brute-forcing
+                        Wordlist to use for brute-forcing
   -o OUTPUT_FILE
                         Output file to write results to (default: None)
   -time TIME
@@ -64,12 +62,14 @@ Subdomain-Enumeration Arguments:
 
 Directory-Enumeration Arguments:
   -dir      Enable directory brute-forcing module
+  -fc, --filter_code FILTER_CODE
+                        Status codes to filter out (comma separated)
+  -fs, --filter_size FILTER_SIZE
+                        Filter out directories with a response size equal to this value
 
 Port-Scanner Arguments:
   -ps      Enable port scanning module
-  
   -p       Range of ports to scan (default: 1024)
-  
           
 ```
 
