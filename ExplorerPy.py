@@ -1,4 +1,4 @@
-#!/usr/bin/env/ python3
+#!/usr/bin/env python3
 
 import argparse
 import socket
@@ -8,7 +8,9 @@ from time import sleep
 import os
 import requests
 from fake_useragent import UserAgent
-import whois 
+import whois
+from tqdm import tqdm
+import threading
 
 '''
 DISCLAIMER:
@@ -35,7 +37,7 @@ parser.add_argument('-d',
 parser.add_argument('-t',
                     help='Number of threads to use for scanning',
                     dest='threadcount',
-                    default=20,
+                    default=10,
                     type=int)
 parser.add_argument('-w',
                     help='Wordlist to use for brute-forcing',
@@ -53,8 +55,6 @@ parser.add_argument('-di',
                     help='Enable domain information gathering module',
                     dest='domaininfo',
                     action='store_true')
-
-
 
 
 # Arguments for SubEnum module
@@ -75,6 +75,13 @@ dir_args.add_argument('-dir',
                       help='Enable directory brute-forcing module',
                       dest='direnum',
                       action='store_true')
+dir_args.add_argument("-fc", "--filter_code",
+                      help="Status codes to filter out (comma separated)",
+                      default="")
+dir_args.add_argument('-fs', '--filter_size', 
+                      help='Filter out directories with a response size equal to this value', 
+                      dest='filter_size', 
+                      default="")
 
 # Arguments for PortScanner module
 port_args = parser.add_argument_group(title='Port-Scanner Arguments')
@@ -87,6 +94,7 @@ port_args.add_argument('-p',
                        dest='portrange',
                        default=1024,
                        type=int)
+
 args = parser.parse_args()
 
 
@@ -97,6 +105,8 @@ wordlist = args.wordlist
 portrange = args.portrange
 time = args.time
 output = args.output_file
+filter_codes = [int(code.strip()) for code in args.filter_code.split(",")] if args.filter_code else []
+filter_size = [int(size.strip()) for size in args.filter_size.split(",")] if args.filter_size else []
 
 
 # Create a UserAgent object
@@ -115,51 +125,82 @@ headers = {
 }
 
 
-#Directory Brute-Forcing module
-def dir_brute(domain, wordlist):
+def dir_brute(domain, wordlist, filter_codes=[], filter_sizes=[], output=None):
     print("Starting Directory-Bruteforcing module")
+    print(f"Filter codes: {filter_codes}")
+    if filter_sizes:
+        print(f"Filtering responses of sizes: {', '.join(map(str, filter_sizes))} bytes")
     if not os.path.exists(wordlist):
         print(f"Unable to read {wordlist}, Please provide a valid wordlist.")
         sys.exit()
+
     def formatter(url):
-        url = url if url.endswith('/') else url+'/'
-        url = url if url.startswith('http') else 'http://'+url
+        url = url if url.endswith('/') else url + '/'
+        url = url if url.startswith('http') else 'http://' + url
         return url
+
     def get_size(response):
         size = response.headers.get('Content-Length', None)
         if size:
             size = int(size)
         else:
-            size = 0
+            size = len(response.content)  # Fallback if 'Content-Length' header is not present
         return size
-    print(f"Status \t\tPath \t\t\t\t\t\t\tSize (bytes)")
-    print("~"*80)
+
+    def get_lines(response):
+        return len(response.text.splitlines())
+
     url = formatter(domain)
     Session = requests.Session()
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future_to_url = {executor.submit(Session.get, url + path.strip(), allow_redirects=False): path.strip() for path in open(wordlist)}
-        for future in concurrent.futures.as_completed(future_to_url):
-            path = future_to_url[future]
-            try:
-                response = future.result()
-                status_code = response.status_code
-                size = get_size(response)
-                result = f'{status_code:>6}\t{path:50.50s}'
-                if size:
-                    result += f'\t{size:>10}'
-                if status_code == 404:
-                    print(f'\033[1;31m[*] {result}\033[0m')
-                elif status_code == 403:
-                    print(f'\033[1;33m[!] {result}\033[0m')
-                else:
-                    print(f'\033[1;32m[+] {result}\033[0m')
-                    if output:
-                      with open(output,'a') as f:
-                        f.write(f'{result}\n')
-            except requests.ConnectionError:
-                print(f'\033[91mConnection Error: {url}\033[00m')
-            except Exception as exc:
-                print(f'{path} generated an exception: {exc}')
+
+    paths = [path.strip() for path in open(wordlist)]
+    total_paths = len(paths)
+
+    # Display header for results
+    tqdm.write("\nStatus    Path                                      Size (bytes) Lines")
+    tqdm.write("-" * 76)
+
+    lock = threading.Lock()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threadcount) as executor:
+        # Using tqdm for progress display
+        progress_bar = tqdm(paths, unit="path", ncols=100)
+
+        futures = {executor.submit(Session.get, url + path, allow_redirects=False): path for path in paths}
+
+        for future in concurrent.futures.as_completed(futures):
+            path = futures[future]
+            with lock:  # Locking to ensure progress_bar update and printing doesn't get mixed up
+                progress_bar.update(1)
+                try:
+                    response = future.result()
+                    status_code = response.status_code
+
+                    if status_code in filter_codes:
+                        continue
+
+                    size = get_size(response)
+                    if filter_sizes and size in filter_sizes:
+                        continue
+
+                    lines = get_lines(response)
+                    result_line = f'{status_code:>4}   {path:40.40s} {size:>12} {lines:>5}'
+
+                    if status_code == 404:
+                        tqdm.write(f'\033[1;31m[*] {result_line}\033[0m')
+                    elif status_code == 403:
+                        tqdm.write(f'\033[1;33m[!] {result_line}\033[0m')
+                    else:
+                        tqdm.write(f'\033[1;32m[+] {result_line}\033[0m')
+                        if output:
+                            with open(output, 'a') as f:
+                                f.write(f'{result_line}\n')
+                except requests.ConnectionError:
+                    tqdm.write(f'\033[91mConnection Error: {url}\033[00m')
+                except Exception as exc:
+                    tqdm.write(f'{path} generated an exception: {exc}')
+
+
 
 #Subdomain-Enumeration Module
 def sub_brute(domain, wordlist):
@@ -275,7 +316,7 @@ if args.subenum:
 
 if args.direnum:
   try:
-    dir_brute(domain, wordlist)
+    dir_brute(domain, wordlist, filter_codes, filter_size)
   except TypeError:
     print("Provide a wordlist for the direnum mode")
 
