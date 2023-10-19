@@ -11,6 +11,8 @@ from fake_useragent import UserAgent
 import whois
 from tqdm import tqdm
 import threading
+import shutil
+import re
 
 '''
 DISCLAIMER:
@@ -135,16 +137,13 @@ def dir_brute(domain, wordlist, filter_codes=[], filter_sizes=[], output=None):
         sys.exit()
 
     def formatter(url):
-        url = url if url.endswith('/') else url + '/'
-        url = url if url.startswith('http') else 'http://' + url
+        url = url if url.endswith('/') else f'{url}/'
+        url = url if url.startswith('http') else f'http://{url}'
         return url
 
     def get_size(response):
         size = response.headers.get('Content-Length', None)
-        if size:
-            size = int(size)
-        else:
-            size = len(response.content)  # Fallback if 'Content-Length' header is not present
+        size = int(size) if size else len(response.content)
         return size
 
     def get_lines(response):
@@ -215,15 +214,14 @@ def sub_brute(domain, wordlist):
     with concurrent.futures.ThreadPoolExecutor(max_workers=threadcount) as executor:
         futures = []
         with open(wordlist, 'r') as f_in:
-            for i, line in enumerate(f_in):
+            for line in f_in:
                 subdomain = f'{line.strip()}.{domain}'
                 url = f'https://{subdomain}'
                 future = executor.submit(check_subdomain, url, Session, printed_subdomains)
                 futures.append(future)
         for future in concurrent.futures.as_completed(futures):
             try:
-                result = future.result()
-                if result:
+                if result := future.result():
                     if output:
                         with open(output, 'a') as f_out:
                             f_out.write(f'{result}\n')
@@ -244,15 +242,15 @@ def check_subdomain(url, Session, printed_subdomains):
     try:
         response = Session.get(url, headers=headers, allow_redirects=True, timeout=time)
         final_url = response.url
-        status = response.status_code
         if domain in final_url and final_url not in printed_subdomains:
             printed_subdomains.add(final_url)
+            status = response.status_code
             if status == 200:
                 print(f'\033[1;32m[+] >> {final_url}   status-code:[{status}]\033[00m')
             else:
                 print(f'\033[1;31m[-] {final_url} {status}\033[00m')
             return final_url
-    except:
+    except Exception:
         print(f'\033[91m[-]{url}\033[00m')
 
 
@@ -274,39 +272,68 @@ def port_scan(domain, portrange):
 
 
 #Fetch Subdomains using OSINT
-def osint(domain):
-  def crt(domain):
-    Session = requests.Session()
+def osint(domain, output_file=None):
     print("Fetching subdomain please wait...")
-    url = f"https://crt.sh/?q=%.{domain}&output=json"
-    try:
-      r = Session.get(url,headers=headers)
-    except requests.exceptions.RequestException as e:
-      print(f"Error: {e}")
-      return []
-    subdomains = []
-    if r.status_code == 200:
-      data = r.json()
-      for entry in data:
-        subdomain = entry['name_value']
-        if '*' in subdomain or '-' in subdomain:
-          continue
-        subdomains.append(subdomain)
-    if not subdomains:
-      return []
-    subdomains = list(set(subdomains))
-    return subdomains
-  subdomains = crt(domain)
-  if not subdomains:
-    print(f"No subdomains found for {domain}")
-  else:
-    print(f"\033[1;32m Found {len(subdomains)} subdomains using OSINT:")
-    for subdomain in subdomains:
-      if output:
-        with open(output, 'a') as f:
-            f.write(f'{subdomain}\n')
-      print(subdomain)
+    
+    # URLs to fetch subdomains from various sources
+    urls = [
+        f"https://rapiddns.io/s/{domain}/#result",
+        f"http://web.archive.org/cdx/search/cdx?url=*.{domain}/*&output=text&fl=original&collapse=urlkey",
+        f"https://crt.sh/?q=%.{domain}",
+        f"https://crt.sh/?q=%.%.{domain}",
+        f"https://crt.sh/?q=%.%.%.{domain}",
+        f"https://crt.sh/?q=%.%.%.%.{domain}",
+        f"https://otx.alienvault.com/api/v1/indicators/domain/{domain}/passive_dns",
+        f"https://api.hackertarget.com/hostsearch/?q={domain}",
+        f"https://urlscan.io/api/v1/search/?q={domain}",
+        f"https://jldc.me/anubis/subdomains/{domain}",
+        f"https://www.google.com/search?q=site%3A{domain}&num=100",
+        f"https://www.bing.com/search?q=site%3A{domain}&count=50"
+    ]
+    
+    # Temporary directory for storing files
+    tmp_dir = "temp"
+    
+    # Create the temporary directory
+    os.makedirs(tmp_dir, exist_ok=True)
+    
+    subdomains = set()
+    
+    def fetch_subdomains_from_url(url):
+        response = requests.get(url)
+        if response.status_code == 200:
+            matches = re.findall(r'([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.' + re.escape(domain), response.text)
+            
+            # Add the subdomains as full URLs (subdomain.fulldomain) to the set
+            full_subdomains = [f"{match}.{domain}" for match in matches]
+            subdomains.update(full_subdomains)
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        executor.map(fetch_subdomains_from_url, urls)
+    
 
+    sorted_subdomains = sorted(subdomains) 
+
+    
+    # Display sorted subdomains in the terminal
+    print(f"\033[1;31mTotal subdomains found: {len(sorted_subdomains)}\033[0m")
+
+    
+    print(f"\033[1m{'Index':<10}{'Subdomain':<50}\033[0m")
+    print("-" * 60)
+
+    for index, subdomain in enumerate(sorted_subdomains):
+        print(f"{index+1:<10}{subdomain}")
+    
+
+    if args.output_file:
+        result_line = "\n".join(sorted_subdomains)
+        with open(args.output_file, 'a') as f:
+            f.write(f'{result_line}\n')
+
+    # Remove the temporary directory
+    shutil.rmtree(tmp_dir)
+    
 
 if args.subenum:
   try:

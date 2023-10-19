@@ -2,3 +2,6 @@ python-whois
 fake_useragent
 requests
 tqdm
+shutil
+re
+
