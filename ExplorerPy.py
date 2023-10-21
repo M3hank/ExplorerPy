@@ -315,16 +315,46 @@ def osint(domain, output_file=None):
     sorted_subdomains = sorted(subdomains) 
 
     
-    # Display sorted subdomains in the terminal
-    print(f"\033[1;31mTotal subdomains found: {len(sorted_subdomains)}\033[0m")
+    # Create a dictionary to store subdomains and their status codes
+    subdomain_status = {}
+    status_counts = {}
+    def check_subdomain_status(subdomain):
+        url = f"http://{subdomain}"
+        try:
+            response = requests.head(url, allow_redirects=True, timeout=5)
+            final_url = response.url
+            status_code = response.status_code
+            if final_url.startswith("https"):
+                url = final_url  # Use the HTTPS URL if available
+        except requests.exceptions.RequestException:
+            # Handle any exceptions that may occur during the request
+            status_code = "Error"
 
-    
-    print(f"\033[1m{'Index':<10}{'Subdomain':<50}\033[0m")
-    print("-" * 60)
+        subdomain_status[subdomain] = status_code
+        # Count the subdomains for each status code
+        if status_code in status_counts:
+            status_counts[status_code] += 1
+        else:
+            status_counts[status_code] = 1
 
-    for index, subdomain in enumerate(sorted_subdomains):
-        print(f"{index+1:<10}{subdomain}")
-    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        executor.map(check_subdomain_status, sorted_subdomains)
+
+    # Display sorted subdomains and their status codes in the terminal
+    print("\033[1;37m" + f"{'Subdomain':<50}{'Status Code':<10}" + "\033[0m")
+    print("\033[1;37m" + "-" * 60 + "\033[0m")
+
+    for index, subdomain in enumerate(sorted_subdomains, start=1):
+        status_code = subdomain_status.get(subdomain, "N/A")
+        print(f"{index:<3}{subdomain:<50}{status_code}")
+
+    # Display the total count for each status code
+    print("\033[1;37m" + "-" * 60 + "\033[0m")
+    print("\033[1;31m" + f"Total subdomains found: {len(sorted_subdomains)}" + "\033[0m")
+
+    print("\n\033[1;37mStatus Code Counts:\033[0m")
+    for code, count in status_counts.items():
+        print(f"{code:<10}{count}")
 
     if args.output_file:
         result_line = "\n".join(sorted_subdomains)
