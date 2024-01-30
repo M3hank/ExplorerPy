@@ -1,7 +1,11 @@
-python-whois
-fake_useragent
+argparse
+socket.py
+concurrent.futures
+sys
 requests
+fake-useragent
+python-whois
 tqdm
+threading
 shutil
 re
-
