@@ -35,7 +35,8 @@ parser = argparse.ArgumentParser(prog="ExplorerPy",description="A Scanning-toolk
 # Arguments to be passed
 parser.add_argument('-d',
                     help='Domain name to scan',
-                    dest='domain')
+                    dest='domain',
+                    required=True)
 parser.add_argument('-t',
                     help='Number of threads to use for scanning',
                     dest='threadcount',
@@ -105,7 +106,7 @@ domain = args.domain
 threadcount = args.threadcount
 wordlist = args.wordlist
 portrange = args.portrange
-time = args.time
+timeout = args.time
 output = args.output_file
 filter_codes = [int(code.strip()) for code in args.filter_code.split(",")] if args.filter_code else []
 filter_size = [int(size.strip()) for size in args.filter_size.split(",")] if args.filter_size else []
@@ -127,7 +128,9 @@ headers = {
 }
 
 
-def dir_brute(domain, wordlist, filter_codes=[], filter_sizes=[], output=None):
+def dir_brute(domain, wordlist, filter_codes=None, filter_sizes=None, output=None):
+    filter_codes = filter_codes or []
+    filter_sizes = filter_sizes or []
     print("Starting Directory-Bruteforcing module")
     print(f"Filter codes: {filter_codes}")
     if filter_sizes:
@@ -211,13 +214,14 @@ def sub_brute(domain, wordlist):
     printed_subdomains = set()
     Session = requests.Session()
 
+    lock = threading.Lock()
     with concurrent.futures.ThreadPoolExecutor(max_workers=threadcount) as executor:
         futures = []
         with open(wordlist, 'r') as f_in:
             for line in f_in:
                 subdomain = f'{line.strip()}.{domain}'
                 url = f'https://{subdomain}'
-                future = executor.submit(check_subdomain, url, Session, printed_subdomains)
+                future = executor.submit(check_subdomain, url, Session, printed_subdomains, lock)
                 futures.append(future)
         for future in concurrent.futures.as_completed(futures):
             try:
@@ -238,12 +242,18 @@ def domain_info(domain):
     print(f"Creation Date: {w.creation_date}")
     print(f"Expiration Date: {w.expiration_date}")
 
-def check_subdomain(url, Session, printed_subdomains):
+def check_subdomain(url, Session, printed_subdomains, lock):
     try:
-        response = Session.get(url, headers=headers, allow_redirects=True, timeout=time)
+        response = Session.get(url, headers=headers, allow_redirects=True, timeout=timeout)
         final_url = response.url
-        if domain in final_url and final_url not in printed_subdomains:
-            printed_subdomains.add(final_url)
+        
+        is_new = False
+        with lock:
+            if domain in final_url and final_url not in printed_subdomains:
+                printed_subdomains.add(final_url)
+                is_new = True
+                
+        if is_new:
             status = response.status_code
             if status == 200:
                 print(f'\033[1;32m[+] >> {final_url}   status-code:[{status}]\033[00m')
@@ -258,17 +268,26 @@ def check_subdomain(url, Session, printed_subdomains):
 #Port-Scanning Module
 def port_scan(domain, portrange):
   print("Starting Port-Scanner")
-  def scan_ports(domain, port):
+  try:
+      target_ip = socket.gethostbyname(domain)
+  except socket.gaierror:
+      print("\033[1;31mError: Domain could not be resolved.\033[0m")
+      return
+
+  def scan_ports(ip, port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(time)
-    result = s.connect_ex((domain, port))
+    s.settimeout(timeout)
+    result = s.connect_ex((ip, port))
     if result == 0:
-        service = socket.getservbyport(port)
+        try:
+            service = socket.getservbyport(port)
+        except OSError:
+            service = "unknown"
         print(f"\033[32mPort {port} is Open ({service})\033[0m")
     s.close()
   with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
     for port in range(portrange+1):
-      executor.submit(scan_ports, domain, port)
+      executor.submit(scan_ports, target_ip, port)
 
 
 #Fetch Subdomains using OSINT
@@ -291,22 +310,19 @@ def osint(domain, output_file=None):
         f"https://www.bing.com/search?q=site%3A{domain}&count=50"
     ]
     
-    # Temporary directory for storing files
-    tmp_dir = "temp"
-    
-    # Create the temporary directory
-    os.makedirs(tmp_dir, exist_ok=True)
-    
     subdomains = set()
     
     def fetch_subdomains_from_url(url):
-        response = requests.get(url)
-        if response.status_code == 200:
-            matches = re.findall(r'([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.' + re.escape(domain), response.text)
-            
-            # Add the subdomains as full URLs (subdomain.fulldomain) to the set
-            full_subdomains = [f"{match}.{domain}" for match in matches]
-            subdomains.update(full_subdomains)
+        try:
+            response = requests.get(url, headers=headers, timeout=timeout)
+            if response.status_code == 200:
+                matches = re.findall(r'([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.' + re.escape(domain), response.text)
+                
+                # Add the subdomains as full URLs (subdomain.fulldomain) to the set
+                full_subdomains = [f"{match}.{domain}" for match in matches]
+                subdomains.update(full_subdomains)
+        except requests.exceptions.RequestException:
+            pass
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         executor.map(fetch_subdomains_from_url, urls)
@@ -361,27 +377,23 @@ def osint(domain, output_file=None):
         with open(args.output_file, 'a') as f:
             f.write(f'{result_line}\n')
 
-    # Remove the temporary directory
-    shutil.rmtree(tmp_dir)
+    # (Temporary directory removed in fixes)
     
 
 if args.subenum:
-  try:
-    sub_brute(domain, wordlist)
-  except TypeError:
-    print("Provide a wordlist for the subenum mode")
+    if not wordlist:
+        print("Provide a wordlist for the subenum mode")
+    else:
+        sub_brute(domain, wordlist)
 
 if args.direnum:
-  try:
-    dir_brute(domain, wordlist, filter_codes, filter_size)
-  except TypeError:
-    print("Provide a wordlist for the direnum mode")
+    if not wordlist:
+        print("Provide a wordlist for the direnum mode")
+    else:
+        dir_brute(domain, wordlist, filter_codes, filter_size, output)
 
 if args.portscan:
-  try:  
     port_scan(domain, portrange)
-  except ConnectionError:
-    print("Check your internet connection for the portscan mode")
 
 if args.osint:
   osint(domain)
